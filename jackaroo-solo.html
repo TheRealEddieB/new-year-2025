@@ -369,7 +369,7 @@
       </tbody>
     </table>
     <p>A marble on Base is safe from the Jack's reposition. Backward moves stop at Base — they never enter Home. You may not play a forward card that would overshoot the Safe Zone.</p>
-    <div class="note"><strong>House rule:</strong> if a selected card has no legal move for any marble, you may discard it unplayed and draw a replacement — that draw still counts toward your score. This keeps the puzzle from ever getting stuck.</div>
+    <div class="note"><strong>House rule:</strong> if a selected card has no legal move for any marble, you may discard it unplayed and draw a replacement — that draw still counts toward your score. If <em>every</em> card in your hand is unplayable at once, the app discards the whole hand and deals a fresh one automatically. This keeps the puzzle from ever getting stuck.</div>
     <h2>Scoring</h2>
     <p>Every card drawn counts — the initial hand of 4, every refill, and a +1 penalty each time the discard pile is reshuffled into a new draw pile. Finish all four marbles in as few draws as possible.</p>
     <table class="tiers">
@@ -492,6 +492,7 @@
     ui = { selectedCardIndex:null, sevenPicks:[], sevenAmountA:null, acePendingId:null };
     logEntries = [];
     refillHand();
+    autoDiscardFullyDeadHand();
     log('New game dealt. Good luck!');
     document.getElementById('victoryModal').classList.remove('open');
     render();
@@ -557,6 +558,24 @@
     return ids.length === 0;
   }
 
+  function handIsFullyDead(){
+    return hand.length === 4 && hand.every(isDead);
+  }
+
+  // If every card in hand is unplayable, discard the whole hand and deal a
+  // fresh one — repeats (bounded) in case the redraw is dead again too.
+  function autoDiscardFullyDeadHand(){
+    var guard = 0;
+    while (handIsFullyDead() && guard < 25){
+      var labels = hand.map(cardLabel).join(', ');
+      discardPile = discardPile.concat(hand);
+      hand = [];
+      refillHand();
+      log('No card in hand had a legal move — auto-discarded the hand (' + labels + ') and dealt a fresh one.');
+      guard++;
+    }
+  }
+
   // second-pick set for the 7 split, given first id A
   function sevenSecondOptions(idA){
     var mA = marbles[idA];
@@ -578,9 +597,12 @@
     hand.splice(ui.selectedCardIndex, 1);
     discardPile.push(card);
     log(logMsg, cls);
-    refillHand();
     ui = { selectedCardIndex:null, sevenPicks:[], sevenAmountA:null, acePendingId:null };
     checkWin();
+    if (!gameOver){
+      refillHand();
+      autoDiscardFullyDeadHand();
+    }
     render();
   }
 
@@ -591,9 +613,12 @@
     hand.splice(ui.selectedCardIndex, 1);
     discardPile.push(card);
     log('Played 7 (split ' + aAmt + '+' + bAmt + '): ' + msg1 + ' ' + msg2);
-    refillHand();
     ui = { selectedCardIndex:null, sevenPicks:[], sevenAmountA:null, acePendingId:null };
     checkWin();
+    if (!gameOver){
+      refillHand();
+      autoDiscardFullyDeadHand();
+    }
     render();
   }
 
@@ -603,6 +628,7 @@
     discardPile.push(card);
     log('Discarded unplayable ' + cardLabel(card) + ' — no legal moves.');
     refillHand();
+    autoDiscardFullyDeadHand();
     ui = { selectedCardIndex:null, sevenPicks:[], sevenAmountA:null, acePendingId:null };
     render();
   }
