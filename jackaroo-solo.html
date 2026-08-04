@@ -105,6 +105,7 @@
     font-weight:700;
     letter-spacing:0.03em;
     cursor:pointer;
+    touch-action:manipulation;
     box-shadow:0 3px 0 #7a5f16, 0 4px 8px rgba(0,0,0,0.3);
   }
   button.woodbtn:hover{ filter:brightness(1.06); }
@@ -175,8 +176,9 @@
   #actionPanel .hint{ color:var(--parchment-dim); }
   .stepper-row{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
   .stepper-btn{
-    width:30px; height:30px; border-radius:50%; border:1px solid var(--brass);
+    width:38px; height:38px; border-radius:50%; border:1px solid var(--brass);
     background:rgba(201,162,39,0.18); color:var(--brass-bright); font-size:1.1rem; cursor:pointer;
+    touch-action:manipulation;
   }
   .stepper-btn:disabled{ opacity:0.3; cursor:not-allowed; }
   .split-readout{ font-variant-numeric:tabular-nums; }
@@ -193,6 +195,7 @@
     display:flex; flex-direction:column; justify-content:space-between;
     padding:7px 8px;
     cursor:pointer;
+    touch-action:manipulation;
     color:var(--ink);
     font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
     transition: transform 0.12s ease, box-shadow 0.12s ease;
@@ -246,7 +249,7 @@
   .marble-g .body{ fill:var(--marble); stroke:#3d0f0a; stroke-width:1.4; filter:drop-shadow(0 2px 2px rgba(0,0,0,0.5)); }
   .marble-g .num{ fill:#f8e9c8; font-size:11px; font-weight:700; text-anchor:middle; dominant-baseline:central; font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; pointer-events:none; }
   .marble-hit{ cursor:default; }
-  .marble-hit.eligible{ cursor:pointer; }
+  .marble-hit.eligible{ cursor:pointer; touch-action:manipulation; }
   .marble-hit.eligible .body{ animation: pulse 1.3s ease-in-out infinite; }
   .marble-hit.picked .body{ stroke:var(--brass-bright); stroke-width:3; }
   @keyframes pulse{
@@ -874,6 +877,13 @@
       var cls = 'marble-hit' + (isEligible ? ' eligible' : '') + (isPicked ? ' picked' : '');
 
       var g = svgEl('g', { class:'marble-g ' + cls, transform:'translate(' + x + ',' + y + ')', tabindex: isEligible ? '0' : '-1' });
+      if (isEligible && !stacked){
+        // Enlarges the tap target well past the visible marble (touch
+        // targets smaller than ~40px are easy to miss) without touching
+        // the stacked case, where marbles sit close enough that a bigger
+        // hit circle would start overlapping its neighbor's.
+        g.appendChild(svgEl('circle', { r:22, fill:'transparent', 'pointer-events':'all' }));
+      }
       var body = svgEl('circle', { class:'body', r: stacked ? 8 : 15 });
       var num = svgEl('text', { class:'num', y:1, style:'font-size:' + (stacked ? 8 : 11) + 'px' });
       num.textContent = String(m.id + 1);
@@ -1014,7 +1024,11 @@
     }
 
     if (card.rank === '7' && ui.sevenPicks.length === 1){
-      panel.innerHTML = '<span class="hint">First marble chosen. Now tap a second glowing marble to split the 7 with.</span>';
+      var hintSecond = document.createElement('span');
+      hintSecond.className = 'hint';
+      hintSecond.textContent = 'First marble chosen. Now pick a second marble to split the 7 with.';
+      panel.appendChild(hintSecond);
+      renderMarblePickButtons(panel, sevenSecondOptions(ui.sevenPicks[0]).map(function(o){ return o.id; }));
       return;
     }
 
@@ -1055,8 +1069,27 @@
 
     var hint3 = document.createElement('span');
     hint3.className = 'hint';
-    hint3.textContent = cardLabel(card) + ' selected — tap a glowing marble on the board to play it.';
+    hint3.textContent = cardLabel(card) + ' selected — tap a glowing marble on the board, or pick one below.';
     panel.appendChild(hint3);
+    renderMarblePickButtons(panel, computeEligible(card));
+  }
+
+  // Text-button fallback for picking a marble — mirrors tapping it on the
+  // board, but doesn't depend on precisely hitting a small circle (the SVG
+  // marbles are a tight target on touch devices).
+  function renderMarblePickButtons(panel, ids){
+    if (!ids.length) return;
+    var row = document.createElement('div');
+    row.className = 'row-btns';
+    ids.forEach(function(id){
+      var btn = document.createElement('button');
+      btn.className = 'woodbtn ghost';
+      btn.type = 'button';
+      btn.textContent = 'Marble ' + (id + 1) + ' — ' + describeMarble(marbles[id]);
+      btn.addEventListener('click', function(){ onMarbleClick(id); });
+      row.appendChild(btn);
+    });
+    panel.appendChild(row);
   }
 
   function renderLog(){
